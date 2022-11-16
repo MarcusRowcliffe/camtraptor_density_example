@@ -307,6 +307,14 @@ rem <- function(data, param, stratum_areas=NULL, reps=999){
   rbind(param, tr, data.frame(parameter="density", estimate=density, se=SE))
 }
 
+get_rem_data <- function(package, species=NULL){
+  if(is.null(species)) species <- select_species(package)
+  data.frame(
+    observations = get_n_individuals(package, species=species)$n,
+    effort = get_effort(package, unit="second")$effort) %>%
+    suppressMessages()
+}
+
 #' Integrated random encounter model density estimate
 #' 
 #' Estimates animal density for a given species given a camtrap DP datapackage.
@@ -362,10 +370,7 @@ rem_estimate <- function(package,
   if(is.null(speed_model))
     speed_model <- fit_speedmodel(package, species)
   
-  data <- data.frame(
-    observations = get_n_individuals(package, species=species)$n,
-    effort = get_effort(package, unit="second")$effort) %>%
-    suppressMessages()
+  data <- get_rem_data(package)
   param <- data.frame(parameter=c("radius", "angle", "speed", "activity"),
                       rbind(radius_model$edd, 
                             angle_model$edd * 2,
