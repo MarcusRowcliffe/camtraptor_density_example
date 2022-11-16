@@ -1,4 +1,4 @@
-read_camtrap_dp <- function(package){
+read_camtrap_dp2 <- function(package){
   package <- read_camtrap_dp(package)
   package$data$observations <- rename(package$data$observations, 
                                       speed=X22, 

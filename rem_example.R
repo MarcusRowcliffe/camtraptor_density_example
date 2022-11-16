@@ -16,7 +16,7 @@ devtools::source_url("https://raw.githubusercontent.com/MarcusRowcliffe/camtrapt
 
 ################################################
 # Load data
-package <- read_camtrap_dp("./example_data/datapackage.json")
+package <- read_camtrap_dp2("./example_data/datapackage.json")
 
 ################################################
 # One step analysis
