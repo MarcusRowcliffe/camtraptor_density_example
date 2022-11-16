@@ -247,7 +247,7 @@ get_parameter_table <- function(radius_model, angle_model,
   expectedDist <- c("cm", "m", "km")
   expectedTime <- c("second", "minute", "hour", "day")
   expectedAngle <- c("radian", "degree")
-  if(!all(expected %in% names(inputUnits) & expected %in% names(inputUnits)))
+  if(!all(c(expectedNames %in% names(inputUnits), expectedNames %in% names(inputUnits))))
     stop(paste("Names of inputUnits and outputUnits must both include all of:",
      paste(expectedNames, collapse = ", ")))
   if(!all(c(inputUnits[c("radius", "speedDist")] %in% expectedDist,

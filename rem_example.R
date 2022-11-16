@@ -20,6 +20,10 @@ package <- read_camtrap_dp2("./example_data/datapackage.json")
 
 ################################################
 # One step analysis
+undebug(fit_detmodel)
+undebug(fit_speedmodel)
+undebug(get_rem_data)
+get_rem_data(package, "Vulpes vulpes")
 result <- rem_estimate(package)
 # Check outputs
 result$estimates
@@ -47,3 +51,4 @@ trdata <- get_rem_data(package, species)
 params <- get_parameter_table(rad, ang, spd, act)
 # Estimate density
 rem(trdata, params)
+
