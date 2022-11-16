@@ -1,36 +1,49 @@
+################################################
+# Install packges (run once)
+install.packages(c("devtools",
+                   "tidyverse",
+                   "activity",
+                   "Distance"))
+devtools::install_github("inbo/camtraptor")
+
+################################################
+# Load packages (run before each session)
 library(tidyverse)
 library(camtraptor)
 library(activity)
 library(Distance)
+devtools::source_url("https://raw.githubusercontent.com/MarcusRowcliffe/camtraptor_density_example/main/rem_functions.R")
 
-dir <- "C:/Users/rowcliffe.m/Downloads/camera-model-calibration-20221114172535"
-package <- read_camtrap_dp(file.path(dir, "datapackage.json"))
-package$data$observations
-View(package$data$observations)
-package$data$observations <- rename(package$data$observations, 
-                                    speed=X22, 
-                                    radius=X23, 
-                                    angle=X24)
+################################################
+# Load data
+package <- read_camtrap_dp("./example_data/datapackage.json")
 
-est <- rem_estimate(pkg, check_deployments=FALSE)
-est$estimates
-est$species
-est$data
+################################################
+# One step analysis
+result <- rem_estimate(package)
+# Check outputs
+result$estimates
+result$species
+result$data
+plot(result$activity_model)
+plot(result$radius_model, pdf=TRUE)
+plot(result$angle_model)
 
-species="Vulpes vulpes"
-spd <- fit_speedmodel(pkg, species=sp)
-act <- fit_actmodel(pkg, species=sp)
-rad <- fit_detmodel(radius~1, pkg, species=sp,
+################################################
+# Building the analysis yourself
+species <- "Vulpes vulpes"
+# Fit auxilaiary parameter models
+spd <- fit_speedmodel(package, species=species)
+act <- fit_actmodel(package, species=species)
+rad <- fit_detmodel(radius~1, package, species=species,
                     order=0, transect="point", truncation=10)
-ang <- fit_detmodel(angle~1, pkg, species=sp, order=0)
-
+ang <- fit_detmodel(angle~1, package, species=species, order=0)
+# Examine models
 plot(rad, pdf=TRUE)
-plot(est$radius_model, pdf=TRUE)
-plot(est$angle_model)
-plot(est$activity_model)
-
-param <- head(est$estimates, -2)[,1:3]
-param[2, 2:3] <- param[2, 2:3]*pi/180
-rem(est$data, param)
-write.csv(est$data, "rem_data.csv", row.names = FALSE)
-write.csv(param, "rem_param.csv", row.names = FALSE)
+plot(ang)
+plot(act)
+# Generate trap rate and parameter data tables
+trdata <- get_rem_data(package, species)
+params <- get_parameter_table(rad, ang, spd, act)
+# Estimate density
+rem(trdata, params)

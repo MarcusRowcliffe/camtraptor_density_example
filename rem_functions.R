@@ -1,4 +1,4 @@
-read_camtrap_dp2 <- function(package){
+read_camtrap_dp <- function(package){
   package <- read_camtrap_dp(package)
   package$data$observations <- rename(package$data$observations, 
                                       speed=X22, 
@@ -222,6 +222,124 @@ fit_detmodel <- function(formula,
   mod
 }
 
+get_rem_data <- function(package, species=NULL, 
+                         unit=c("second", "minute", "hour", "day")){
+  unit <- match.arg(unit)
+  if(is.null(species)) species <- select_species(package)
+  data <- data.frame(
+    observations = get_n_individuals(package, species=species)$n,
+    effort = get_effort(package, unit=unit)$effort) %>%
+    suppressMessages()
+  list(data=data, unit=unit)
+}
+
+get_parameter_table <- function(radius_model, angle_model, 
+                                speed_model, activity_model=NULL,
+                                inputUnits = c(radius="m", 
+                                               angle="radian", 
+                                               speedDist="m", 
+                                               speedTime="second"),
+                                outputUnits = c(radius="m", 
+                                                angle="degree", 
+                                                speedDist="km", 
+                                                speedTime="hour")){
+  expectedNames <- c("radius", "angle", "speedDist", "speedTime")
+  expectedDist <- c("cm", "m", "km")
+  expectedTime <- c("second", "minute", "hour", "day")
+  expectedAngle <- c("radian", "degree")
+  if(!all(expected %in% names(inputUnits) & expected %in% names(inputUnits)))
+    stop(paste("Names of inputUnits and outputUnits must both include all of:",
+     paste(expectedNames, collapse = ", ")))
+  if(!all(c(inputUnits[c("radius", "speedDist")] %in% expectedDist,
+          outputUnits[c("radius", "speedDist")] %in% expectedDist)))
+    stop(paste("Distance units must be one of: ",
+               paste(expectedDist, collapse = ", ")))
+  if(!all(inputUnits["speedTime"] %in% expectedTime,
+          outputUnits["speedTime"] %in% expectedTime))
+    stop(paste("Time units must be one of: ",
+               paste(expectedTime, collapse = ", ")))
+  if(!all(inputUnits["angle"] %in% expectedAngle, 
+          outputUnits["angle"] %in% expectedAngle))
+    stop(paste("Angle units must be one of: ",
+               paste(expectedAngle, collapse = ", ")))
+  
+  # Lookup tables  
+  dmult <- cbind(expand.grid(c("m","km","cm"), c("m","km","cm")),
+                 m=c(1, 1e3, 1e-2, 1e-3, 1, 1e-5, 1e2, 1e5, 1))
+  tmult <- cbind(expand.grid(c("second", "minute", "hour", "day"),
+                             c("second", "minute", "hour", "day")),
+                 m=c(1, 1/60, 1/60^2, 1/(24*60^2),
+                     60, 1, 1/60, 1/(24*60),
+                     60^2, 60, 1, 1/24,
+                     24*60^2, 24*60, 24, 1))
+  amult <- cbind(expand.grid(c("radian", "degree"), c("radian", "degree")),
+                 m=c(1, pi/180, 180/pi, 1))
+  # Multipliers
+  rm <- dmult$m[dmult$Var1==inputUnits["radius"] & dmult$Var2==outputUnits["radius"]]
+  sdm <- dmult$m[dmult$Var1==inputUnits["speedDist"] & dmult$Var2==outputUnits["speedDist"]]
+  stm <- tmult$m[tmult$Var1==inputUnits["speedTime"] & tmult$Var2==outputUnits["speedTime"]]
+  am <- amult$m[amult$Var1==inputUnits["angle"] & amult$Var2==outputUnits["angle"]]
+  
+  act_val <- if(is.null(activity_model)) c(1,0) else activity_model@act[1:2]
+  res <- data.frame(parameter = c("radius", "angle", "speed", "activity"),
+                    rbind(radius_model$edd * rm, 
+                          angle_model$edd * 2 * am,
+                          speed_model$speed * sdm * stm, 
+                          act_val),
+                    unit = c(outputUnits["radius"], 
+                             outputUnits["angle"], 
+                             paste(outputUnits["speedDist"], outputUnits["speedTime"], sep="/"),
+                             "none"))
+  rownames(res) <- NULL
+  res
+}
+
+
+harmonise_units <- function(param, data,
+                            distUnit=c("km","m", "cm"), 
+                            timeUnit=c("day", "hour", "minute", "second")){
+  distUnit <- match.arg(distUnit)
+  timeUnit <- match.arg(timeUnit)
+  # Lookup tables
+  dmult <- cbind(expand.grid(c("m","km","cm"), c("m","km","cm")),
+                 m=c(1, 1e3, 1e-2, 1e-3, 1, 1e-5, 1e2, 1e5, 1))
+  tmult <- cbind(expand.grid(c("second", "minute", "hour", "day"),
+                             c("second", "minute", "hour", "day")),
+                 m=c(1, 1/60, 1/60^2, 1/(24*60^2),
+                     60, 1, 1/60, 1/(24*60),
+                     60^2, 60, 1, 1/24,
+                     24*60^2, 24*60, 24, 1))
+  # Input units
+  r <- dplyr::filter(param, parameter=="radius")$unit
+  a <- dplyr::filter(param, parameter=="angle")$unit
+  s <- param %>%
+    dplyr::filter(parameter=="speed") %>%
+    .$unit %>%
+    strsplit("/") %>%
+    unlist()
+  # Multipliers
+  rm <- dmult$m[dmult$Var1==r & dmult$Var2==distUnit]
+  am <- if(a=="degree") pi/180 else 1
+  sdm <- dmult$m[dmult$Var1==s[1] & dmult$Var2==distUnit]
+  stm <- tmult$m[tmult$Var1==s[2] & tmult$Var2==timeUnit]
+  dm <- tmult$m[tmult$Var1==timeUnit & tmult$Var2==data$unit]
+  
+  ri <- param$parameter=="radius"
+  ai <- param$parameter=="angle"
+  si <- param$parameter=="speed"
+  j <- c("estimate", "se")
+  param[ri, j] <- param[ri, j] * rm
+  param[ai, j] <- param[ai, j] * am
+  param[si, j] <- param[si, j] * sdm * stm
+  param[ri, "unit"] <- distUnit
+  param[ai, "unit"] <- "radian"
+  param[si, "unit"] <- paste(distUnit, timeUnit, sep="/")
+  data$data$effort <- data$data$effort * dm
+  data$unit <- timeUnit
+  list(data=data, param=param)
+}
+
+
 #' Fit a random encounter model
 #'
 #' Estimates REM density given dataframes of trap rate and auxiliary 
@@ -254,7 +372,7 @@ fit_detmodel <- function(formula,
 #'  that these are harmonised across data and parameters.
 #' @family density estimation functions
 #' @export
-rem <- function(data, param, stratum_areas=NULL, reps=999){
+rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
   
   traprate <- function(data){
     if(is.null(stratum_areas)){
@@ -277,24 +395,27 @@ rem <- function(data, param, stratum_areas=NULL, reps=999){
     traprate(data[i, ])
   }
   
-  if(!all(c("effort", "observations") %in% names(data)))
+  if(!all(c("effort", "observations") %in% names(data$data)))
     stop("data must contain (at least) columns effort and observations")
   if(!all(c("speed", "radius", "angle") %in% param$parameter))
     stop("param must contain (at least) parameters speed, radius and angle")
   if(!is.null(stratum_areas)){
-    if(!"stratumID" %in% names(data))
+    if(!"stratumID" %in% names(data$data))
       stop("data must contain column stratumID for stratified analysis")
     if(!all(c("stratumID", "area") %in% names(stratum_areas)))
       stop("stratum_areas must contain columns stratumID and area")
-    if(!all(data$stratumID %in% stratum_areas$stratumID)) 
+    if(!all(data$data$stratumID %in% stratum_areas$stratumID)) 
       stop("Not all strata in data are present in stratum_areas")
   }  
   
   if(!("activity" %in% param$parameter)) 
     param <- rbind(param, data.frame(parameter="activity", estimate=1, se=0))
   param <- param %>%
-    dplyr::select(parameter, estimate, se) %>%
+    dplyr::select(parameter, estimate, se, unit) %>%
     dplyr::filter(parameter %in% c("radius", "angle", "speed", "activity"))
+  pkg <- harmonise_units(param, data, ...)
+  param <- pkg$param
+  data <- pkg$data$data
   add <- ifelse(param$parameter == "angle", 2, 0)
   multiplier <- pi / prod(param$estimate + add)
   
@@ -304,16 +425,13 @@ rem <- function(data, param, stratum_areas=NULL, reps=999){
   Es <- c(tr$estimate, param$estimate + add)
   SEs <- c(tr$se, param$se)
   SE <- density * sqrt(sum((SEs/Es)^2))
-  rbind(param, tr, data.frame(parameter="density", estimate=density, se=SE))
+  data.frame(parameter = c("traprate", "density"),
+             estimate = c(traprate(data), density),
+             se = c(sd(tr_sample), SE),
+             unit=c(paste0("n/", pkg$data$unit), 
+                    paste0("n/", subset(pkg$param, parameter=="radius")$unit, "2")))
 }
 
-get_rem_data <- function(package, species=NULL){
-  if(is.null(species)) species <- select_species(package)
-  data.frame(
-    observations = get_n_individuals(package, species=species)$n,
-    effort = get_effort(package, unit="second")$effort) %>%
-    suppressMessages()
-}
 
 #' Integrated random encounter model density estimate
 #' 
@@ -347,10 +465,10 @@ get_rem_data <- function(package, species=NULL){
 #' @export
 rem_estimate <- function(package,
                          check_deployments=TRUE,
-                         activity_model=NULL,
                          radius_model=NULL,
                          angle_model=NULL,
                          speed_model=NULL,
+                         activity_model=NULL,
                          species=NULL,
                          reps=999){
   
@@ -370,24 +488,17 @@ rem_estimate <- function(package,
   if(is.null(speed_model))
     speed_model <- fit_speedmodel(package, species)
   
-  data <- get_rem_data(package)
-  param <- data.frame(parameter=c("radius", "angle", "speed", "activity"),
-                      rbind(radius_model$edd, 
-                            angle_model$edd * 2,
-                            speed_model$speed, 
-                            activity_model@act[1:2]))
-  rownames(param) <- NULL
-  res <- rem(data, param) %>%
-    dplyr::mutate(estimate = estimate * c(1, 180/pi, 1, 1, 86400, 1e6),
-                  se = se * c(1, 180/pi, 1, 1, 86400, 1e6))
-  res$CV <- 100 * res$se / res$estimate
+  data <- get_rem_data(package, species, unit="day")
+  param <- get_parameter_table(radius_model, angle_model, 
+                               speed_model, activity_model)
+  res <- rbind(param, rem(data, param))
+  res$cv <- 100 * res$se / res$estimate
   res$n <- c(nrow(radius_model$data),
              nrow(angle_model$data),
              length(speed_model$data),
              length(activity_model@data),
-             nrow(data),
+             nrow(data$data),
              NA)
-  res$unit = c("m", "deg", "m/s", "none", "n/d", "n/km2")
   list(species=species, data=data, estimates=res,
        speed_model=speed_model, activity_model=activity_model, 
        radius_model=radius_model, angle_model=angle_model)
