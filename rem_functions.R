@@ -1,3 +1,13 @@
+read_camtrap_dp2 <- function(package){
+  package <- read_camtrap_dp(package)
+  package$data$observations <- rename(package$data$observations, 
+                                      speed=X22, 
+                                      radius=X23, 
+                                      angle=X24)
+  package
+}
+
+
 #' Select a species name
 #'
 #' Presents a table of species names with observation count for each
@@ -212,81 +222,89 @@ fit_detmodel <- function(formula,
   mod
 }
 
-#' Fit a detection function model
-#' 
-#' Fits a detection function to a data package and estimates effective 
-#' detection distance (EDD).
-#' 
-#' @param formula A two sided formula relating radius or angle data 
-#'   to covariates.
-#' @param package Camera trap data package object, as returned by
-#'   `read_camtrap_dp()`.
-#' @param species A character string indicating species subset to analyse; user
-#'   input required if NULL.
-#' @return A `ddf` detection function model list, with additional element
-#'   `edd`, a vector with estimated and standard error effective detection 
-#'   distance, or the `newdata` dataframe with EDD estimate and se added.
-#' @seealso \code{\link{Distance::ds}}
+#' Fit a random encounter model
+#'
+#' Estimates REM density given dataframes of trap rate and auxiliary 
+#' parameter data
+#'
+#' @param data A dataframe containing a row per sampling location and columns:
+#'  - observations: the number of animal contact events
+#'  - effort: the amount of camera time
+#'  If `stratum_areas` is provided, additional column required:
+#'  - stratumID: key identifying which stratum each location sits in
+#' @param param A dataframe containing REM parameter estimates with columns
+#'  parameter (parameter name), estimate(parameter standard error) and se 
+#'  (parameter standard error); use one row per parameter, with the following
+#'  names:
+#'  Mandatory
+#'  - radius: effective detection radius
+#'  - angle: effective detection angle
+#'  - speed: average animal speed
+#'  Optionally
+#'  - activity: activity level (proportion of time spent active)
+#'  If activity is provided, speed is assumed to be average speed while active,
+#'  otherwise it is taken to be day range (distance traveled per day)
+#' @param stratum_areas A dataframe with one row per stratum and columns:
+#' - stratumID: stratum ID key, matched with the same key in data
+#' - area: stratum areas (or proportional coverage of the study area)
+#' @param reps Number of bootstrap replicates for error estimation. 
+#' @return A dataframe with the original parameters plus trap rate and density
+#'  estimates and standard errors.
+#' @details The function makes no assumptions about units. It is up to the user to ensure 
+#'  that these are harmonised across data and parameters.
 #' @family density estimation functions
 #' @export
-fit_detmodel <- function(formula, 
-                         package, 
-                         species=NULL, 
-                         newdata=NULL, ...){
+rem <- function(data, param, stratum_areas=NULL, reps=999){
   
-  # get and check model variables
-  allvars <- all.vars(formula)
-  depvar <- allvars[1]
-  covars <- tail(allvars, -1)
-  data <- package$data$observations
-  if(!all(allvars %in% names(data))) stop("Can't find all model variables in data")
-  if("distance" %in% covars) stop("Cannot use \"distance\" as a covariate name - rename and try again")
-  
-  # set up data
-  if(is.null(species)) species <- select_species(package)
-  data <- data %>%
-    subset(scientificName==species) %>%
-    dplyr::select(all_of(allvars)) %>%
-    tidyr::drop_na() %>%
-    as.data.frame()
-  if("useDeployment" %in% names(data)) data <- subset(data, useDeployment)
-  
-  classes <- dplyr::summarise_all(data, class)
-  if(classes[depvar]=="numeric"){
-    data <- data %>%
-      dplyr::rename(distance=all_of(depvar)) %>%
-      dplyr::mutate(distance=abs(distance))
-  } else{
-    cats <- strsplit(as.character(dplyr::pull(data, depvar)), "-")
-    data$distbegin <- unlist(lapply(cats, function(x) as.numeric(x[1])))
-    data$distend <- unlist(lapply(cats, function(x) as.numeric(x[2])))
-    data$distance <- (data$distbegin + data$distend) / 2
+  traprate <- function(data){
+    if(is.null(stratum_areas)){
+      sum(data$observations) / sum(data$effort)
+    } else{
+      local_density <- sapply(stratum_areas$stratumID, function(stratum){
+        i <- data$stratumID==stratum
+        sum(data$observations[i]) / sum(data$effort[i])
+      })
+      sum(local_density * stratum_areas$area) / sum(stratum_areas$area)
+    }
   }
   
-  # model fitting
-  args <- c(data=list(data), formula=formula[-2], list(...))
-  mod <- suppressWarnings(suppressMessages(do.call(ds, args)$ddf))
-  
-  # esw prediction
-  if(length(covars)==0) 
-    newdata <- data.frame(x=0) else{
-      if(is.null(newdata)){
-        newdata <- data %>% dplyr::select(all_of(covars)) %>%
-          lapply(function(x) 
-            if(is.numeric(x)) mean(x, na.rm=T) else sort(unique(x)))  %>%
-          expand.grid()
-      } else{
-        if(!all(covars %in% names(newdata))) stop("Can't find all model covariates in newdata")
-      }}
-  prdn <- predict(mod, newdata, esw=TRUE, se.fit=TRUE)
-  if(mod$meta.data$point){
-    prdn$se.fit <- 0.5 * prdn$se.fit / (pi * prdn$fitted)^0.5
-    prdn$fitted <- sqrt(prdn$fitted/pi)
+  sampled_traprate <- function(){
+    i <- if(is.null(stratum_areas)) 
+      sample(1:nrow(data), replace=TRUE) else
+        as.vector(sapply(stratum_areas$stratumID, function(stratum){
+          sample(which(data$stratumID==stratum), replace=TRUE)
+        }))
+    traprate(data[i, ])
   }
-  ed <- cbind(estimate=prdn$fitted, se=prdn$se.fit)
-  if(length(covars)>=1) ed <- cbind(newdata, ed)
-  mod$edd <- ed
-  mod
+  
+  if(!all(c("effort", "observations") %in% names(data)))
+    stop("data must contain (at least) columns effort and observations")
+  if(!all(c("speed", "radius", "angle") %in% param$parameter))
+    stop("param must contain (at least) parameters speed, radius and angle")
+  if(!is.null(stratum_areas)){
+    if(!"stratumID" %in% names(data))
+      stop("data must contain column stratumID for stratified analysis")
+    if(!all(c("stratumID", "area") %in% names(stratum_areas)))
+      stop("stratum_areas must contain columns stratumID and area")
+    if(!all(data$stratumID %in% stratum_areas$stratumID)) 
+      stop("Not all strata in data are present in stratum_areas")
+  }  
+  
+  if(!("activity" %in% param$parameter)) 
+    param <- rbind(param, data.frame(parameter="activity", estimate=1, se=0))
+  param <- param %>%
+    dplyr::select(parameter, estimate, se) %>%
+    dplyr::filter(parameter %in% c("radius", "angle", "speed", "activity"))
+  add <- ifelse(param$parameter == "angle", 2, 0)
+  multiplier <- pi / prod(param$estimate + add)
+  
+  tr_sample <- replicate(reps, sampled_traprate())
+  tr <- data.frame(parameter="traprate", estimate=traprate(data), se=sd(tr_sample))
+  density <- multiplier * tr$estimate
+  Es <- c(tr$estimate, param$estimate + add)
+  SEs <- c(tr$se, param$se)
+  SE <- density * sqrt(sum((SEs/Es)^2))
+  rbind(param, tr, data.frame(parameter="density", estimate=density, se=SE))
 }
 
 #' Integrated random encounter model density estimate
