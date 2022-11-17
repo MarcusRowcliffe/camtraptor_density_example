@@ -37,7 +37,6 @@ spd <- fit_speedmodel(package, species=species)
 act <- fit_actmodel(package, species=species)
 rad <- fit_detmodel(radius~1, package, species=species, order=0, truncation=12)
 ang <- fit_detmodel(angle~1, package, species=species, order=0, unit="radian")
-args(fit_detmodel)
 # Examine models
 plot(rad, pdf=TRUE)
 plot(ang)
