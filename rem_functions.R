@@ -96,14 +96,23 @@ check_deployment_models <- function(package){
 #'  - data: a numeric vector of the data from which the estimate is derived
 #' @family density estimation functions
 #' @export
-fit_speedmodel <- function(package, species=NULL){
+fit_speedmodel <- function(package, 
+                           species=NULL, 
+                           distUnit=c("m", "km", "cm"),
+                           timeUnit=c("second", "minute", "hour", "day")){
+  distUnit <- match.arg(distUnit)
+  timeUnit <- match.arg(timeUnit)
+  
   if(is.null(species)) species <- select_species(package)
   obs <- package$data$observations %>%
     subset(scientificName==species & speed > 0.01 & speed < 10)
   if("useDeployment" %in% names(obs)) obs <- subset(obs, useDeployment)
   mn <- 1/mean(1/obs$speed, na.rm=FALSE)
   se <- mn^2 * sqrt(var(1/obs$speed, na.rm=FALSE)/nrow(obs))
-  list(speed=data.frame(estimate=mn, se=se), data=obs$speed)
+  list(speed=data.frame(estimate=mn, se=se), 
+       data=obs$speed,
+       distUnit=distUnit,
+       timeUnit=timeUnit)
 }
 
 #' Fit an activity model
@@ -122,7 +131,8 @@ fit_speedmodel <- function(package, species=NULL){
 #' @export
 fit_actmodel <- function(package, 
                          species=NULL, 
-                         reps=999){
+                         reps=999,
+                         ...){
   if(is.null(species)) species <- select_species(package)
   deps <- package$data$deployments
   obs <- package$data$observations
@@ -140,7 +150,7 @@ fit_actmodel <- function(package,
     obs %>%
       subset(scientificName==species) %>%
       .$solartime %>%
-      activity::fitact(adj = 1.5, sample = "data", reps = reps)
+      activity::fitact(adj = 1.5, sample = "data", reps = reps, ...)
   } else
     NULL
 }
@@ -165,7 +175,10 @@ fit_actmodel <- function(package,
 fit_detmodel <- function(formula, 
                          package, 
                          species=NULL, 
-                         newdata=NULL, ...){
+                         newdata=NULL,
+                         unit=c("m", "km", "cm", "degree", "radian"),
+                         ...){
+  unit <- match.arg(unit)
   
   # get and check model variables
   allvars <- all.vars(formula)
@@ -197,7 +210,8 @@ fit_detmodel <- function(formula,
   }
   
   # model fitting
-  args <- c(data=list(data), formula=formula[-2], list(...))
+  type <- if(unit %in% c("m", "km", "cm")) "point" else "line"
+  args <- c(data=list(data), formula=formula[-2], transect=type, list(...))
   mod <- suppressWarnings(suppressMessages(do.call(ds, args)$ddf))
   
   # esw prediction
@@ -219,6 +233,7 @@ fit_detmodel <- function(formula,
   ed <- cbind(estimate=prdn$fitted, se=prdn$se.fit)
   if(length(covars)>=1) ed <- cbind(newdata, ed)
   mod$edd <- ed
+  mod$unit <- unit
   mod
 }
 
@@ -233,65 +248,106 @@ get_rem_data <- function(package, species=NULL,
   list(data=data, unit=unit)
 }
 
+get_multiplier <- function(unitIN, unitOUT){
+  dunits <- c("cm", "m", "km")
+  dmult <- c(1, 1e2, 1e5)
+  tunits <- c("second", "minute", "hour", "day")
+  tmult <- c(1, 60, 60^2, 24*60^2)
+  aunits <- c("radian", "degree")
+  amult <- c(1, pi/180)
+  if(unitIN %in% dunits & unitOUT %in% dunits){
+    u <- dunits
+    m <- dmult
+    n <- length(dunits)
+  } else
+    if(unitIN %in% tunits & unitOUT %in% tunits){
+      u <- tunits
+      m <- tmult
+      n <- length(tunits)
+    } else
+      if(unitIN %in% aunits & unitOUT %in% aunits){
+        u <- aunits
+        m <- amult
+        n <- length(aunits)
+      } else
+        stop("Units not of the same type or not recognised")
+  
+  tab <- data.frame(from = rep(u, each=n),
+                    to = rep(u, n),
+                    mult = rep(m, each=n) / rep(m, n))
+  tab$mult[tab$from==unitIN & tab$to==unitOUT]
+}
+
+re_unit <- function(param,
+                    unitsIN = c(radius="m",
+                                angle="radian",
+                                speedDist="m",
+                                speedTime="second"),
+                    unitsOUT = c(radius="m",
+                                 angle="degree",
+                                 speedDist="km",
+                                 speedTime="hour")){
+
+  rm <- get_multiplier(unitsIN["radius"], unitsOUT["radius"])
+  am <- get_multiplier(unitsIN["angle"], unitsOUT["angle"])
+  sdm <- get_multiplier(unitsIN["speedDist"], unitsOUT["speedDist"])
+  stm <- get_multiplier(unitsIN["speedTime"], unitsOUT["speedTime"])
+
+  # Modify table
+  ri <- param$parameter=="radius"
+  ai <- param$parameter=="angle"
+  si <- param$parameter=="speed"
+  j <- c("estimate", "se")
+  param[ri, j] <- param[ri, j] * rm
+  param[ai, j] <- param[ai, j] * am
+  param[si, j] <- param[si, j] * sdm / stm
+  param[ri, "unit"] <- unitsOUT["radius"]
+  param[ai, "unit"] <- unitsOUT["angle"]
+  param[si, "unit"] <- paste(unitsOUT["speedDist"], unitsOUT["speedTime"], sep="/")
+  param
+}
+
+
 get_parameter_table <- function(radius_model, angle_model, 
                                 speed_model, activity_model=NULL,
-                                inputUnits = c(radius="m", 
-                                               angle="radian", 
-                                               speedDist="m", 
-                                               speedTime="second"),
-                                outputUnits = c(radius="m", 
-                                                angle="degree", 
-                                                speedDist="km", 
-                                                speedTime="hour")){
+                                units = c(radius="m",
+                                          angle="degree",
+                                          speedDist="km",
+                                          speedTime="hour")){
   expectedNames <- c("radius", "angle", "speedDist", "speedTime")
   expectedDist <- c("cm", "m", "km")
   expectedTime <- c("second", "minute", "hour", "day")
   expectedAngle <- c("radian", "degree")
-  if(!all(c(expectedNames %in% names(inputUnits), expectedNames %in% names(inputUnits))))
-    stop(paste("Names of inputUnits and outputUnits must both include all of:",
+  if(!all(expectedNames %in% names(units)))
+    stop(paste("Names of units must include all of:",
      paste(expectedNames, collapse = ", ")))
-  if(!all(c(inputUnits[c("radius", "speedDist")] %in% expectedDist,
-          outputUnits[c("radius", "speedDist")] %in% expectedDist)))
+  if(!all(units[c("radius", "speedDist")] %in% expectedDist))
     stop(paste("Distance units must be one of: ",
                paste(expectedDist, collapse = ", ")))
-  if(!all(inputUnits["speedTime"] %in% expectedTime,
-          outputUnits["speedTime"] %in% expectedTime))
+  if(!all(units["speedTime"] %in% expectedTime))
     stop(paste("Time units must be one of: ",
                paste(expectedTime, collapse = ", ")))
-  if(!all(inputUnits["angle"] %in% expectedAngle, 
-          outputUnits["angle"] %in% expectedAngle))
+  if(!all(units["angle"] %in% expectedAngle))
     stop(paste("Angle units must be one of: ",
                paste(expectedAngle, collapse = ", ")))
-  
-  # Lookup tables  
-  dmult <- cbind(expand.grid(c("m","km","cm"), c("m","km","cm")),
-                 m=c(1, 1e3, 1e-2, 1e-3, 1, 1e-5, 1e2, 1e5, 1))
-  tmult <- cbind(expand.grid(c("second", "minute", "hour", "day"),
-                             c("second", "minute", "hour", "day")),
-                 m=c(1, 1/60, 1/60^2, 1/(24*60^2),
-                     60, 1, 1/60, 1/(24*60),
-                     60^2, 60, 1, 1/24,
-                     24*60^2, 24*60, 24, 1))
-  amult <- cbind(expand.grid(c("radian", "degree"), c("radian", "degree")),
-                 m=c(1, pi/180, 180/pi, 1))
-  # Multipliers
-  rm <- dmult$m[dmult$Var1==inputUnits["radius"] & dmult$Var2==outputUnits["radius"]]
-  sdm <- dmult$m[dmult$Var1==inputUnits["speedDist"] & dmult$Var2==outputUnits["speedDist"]]
-  stm <- tmult$m[tmult$Var1==inputUnits["speedTime"] & tmult$Var2==outputUnits["speedTime"]]
-  am <- amult$m[amult$Var1==inputUnits["angle"] & amult$Var2==outputUnits["angle"]]
-  
+
   act_val <- if(is.null(activity_model)) c(1,0) else activity_model@act[1:2]
+  unitsIN <- c(radius = radius_model$unit,
+               angle = angle_model$unit,
+               speedDist = speed_model$distUnit,
+               speedTime = speed_model$timeUnit)
   res <- data.frame(parameter = c("radius", "angle", "speed", "activity"),
-                    rbind(radius_model$edd * rm, 
-                          angle_model$edd * 2 * am,
-                          speed_model$speed * sdm * stm, 
+                    rbind(radius_model$edd, 
+                          angle_model$edd * 2,
+                          speed_model$speed, 
                           act_val),
-                    unit = c(outputUnits["radius"], 
-                             outputUnits["angle"], 
-                             paste(outputUnits["speedDist"], outputUnits["speedTime"], sep="/"),
+                    unit = c(unitsIN["radius"], 
+                             unitsIN["angle"], 
+                             paste(unitsIN["speedDist"], unitsIN["speedTime"], 
+                                   sep="/"),
                              "none"))
   rownames(res) <- NULL
-  res
+  re_unit(res, unitsIN, units)
 }
 
 
@@ -300,43 +356,24 @@ harmonise_units <- function(param, data,
                             timeUnit=c("day", "hour", "minute", "second")){
   distUnit <- match.arg(distUnit)
   timeUnit <- match.arg(timeUnit)
-  # Lookup tables
-  dmult <- cbind(expand.grid(c("m","km","cm"), c("m","km","cm")),
-                 m=c(1, 1e3, 1e-2, 1e-3, 1, 1e-5, 1e2, 1e5, 1))
-  tmult <- cbind(expand.grid(c("second", "minute", "hour", "day"),
-                             c("second", "minute", "hour", "day")),
-                 m=c(1, 1/60, 1/60^2, 1/(24*60^2),
-                     60, 1, 1/60, 1/(24*60),
-                     60^2, 60, 1, 1/24,
-                     24*60^2, 24*60, 24, 1))
-  # Input units
-  r <- dplyr::filter(param, parameter=="radius")$unit
-  a <- dplyr::filter(param, parameter=="angle")$unit
-  s <- param %>%
+
+  spd_units <- param %>%
     dplyr::filter(parameter=="speed") %>%
     .$unit %>%
     strsplit("/") %>%
     unlist()
-  # Multipliers
-  rm <- dmult$m[dmult$Var1==r & dmult$Var2==distUnit]
-  am <- if(a=="degree") pi/180 else 1
-  sdm <- dmult$m[dmult$Var1==s[1] & dmult$Var2==distUnit]
-  stm <- tmult$m[tmult$Var1==s[2] & tmult$Var2==timeUnit]
-  dm <- tmult$m[tmult$Var1==timeUnit & tmult$Var2==data$unit]
-  
-  ri <- param$parameter=="radius"
-  ai <- param$parameter=="angle"
-  si <- param$parameter=="speed"
-  j <- c("estimate", "se")
-  param[ri, j] <- param[ri, j] * rm
-  param[ai, j] <- param[ai, j] * am
-  param[si, j] <- param[si, j] * sdm * stm
-  param[ri, "unit"] <- distUnit
-  param[ai, "unit"] <- "radian"
-  param[si, "unit"] <- paste(distUnit, timeUnit, sep="/")
+  unitsIN <- c(radius = dplyr::filter(param, parameter=="radius")$unit,
+               angle = dplyr::filter(param, parameter=="angle")$unit,
+               speedDist = spd_units[1],
+               speedTime = spd_units[2])
+  unitsOUT <- c(radius=distUnit, angle="radian", 
+                speedDist=distUnit, speedTime=timeUnit)
+  paramOUT <- re_unit(param, unitsIN, unitsOUT)
+
+  dm <- get_multiplier(data$unit, timeUnit)
   data$data$effort <- data$data$effort * dm
   data$unit <- timeUnit
-  list(data=data, param=param)
+  list(data=data, param=paramOUT)
 }
 
 
@@ -480,10 +517,11 @@ rem_estimate <- function(package,
   
   if(is.null(radius_model)) 
     radius_model <- fit_detmodel(radius~1, package, species,
-                                 transect="point", order=0, truncation=10)
+                                 order=0, truncation=10)
   
   if(is.null(angle_model))
-    angle_model <- fit_detmodel(angle~1, package, species, order=0)
+    angle_model <- fit_detmodel(angle~1, package, species, 
+                                order=0, unit="radian")
   
   if(is.null(speed_model))
     speed_model <- fit_speedmodel(package, species)

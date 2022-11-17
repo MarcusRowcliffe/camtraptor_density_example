@@ -35,16 +35,16 @@ species <- "Vulpes vulpes"
 # Fit auxilaiary parameter models
 spd <- fit_speedmodel(package, species=species)
 act <- fit_actmodel(package, species=species)
-rad <- fit_detmodel(radius~1, package, species=species,
-                    order=0, transect="point", truncation=10)
-ang <- fit_detmodel(angle~1, package, species=species, order=0)
+rad <- fit_detmodel(radius~1, package, species=species, order=0, truncation=12)
+ang <- fit_detmodel(angle~1, package, species=species, order=0, unit="radian")
+args(fit_detmodel)
 # Examine models
 plot(rad, pdf=TRUE)
 plot(ang)
 plot(act)
 # Generate trap rate and parameter data tables
 trdata <- get_rem_data(package, species)
-params <- get_parameter_table(rad, ang, spd, act)
+param <- get_parameter_table(rad, ang, spd, act)
 # Estimate density
-rem(trdata, params)
+rem(trdata, param)
 
