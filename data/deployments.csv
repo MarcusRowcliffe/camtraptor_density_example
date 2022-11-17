@@ -1,0 +1,10 @@
+deploymentID,locationID,locationName,longitude,latitude,coordinateUncertainty,start,end,setupBy,cameraID,cameraModel,cameraInterval,cameraHeight,cameraTilt,cameraHeading,timestampIssues,baitUse,session,array,featureType,habitat,tags,comments,_id
+159bd540-f5cf-4c15-829b-cb07a224e2fd,caef7f02-a840-484e-92d9-0c8733f95480,Reconyx HC600 1080mp,4.35019,50.86672,,2022-11-04T14:15:46+01:00,2022-11-04T14:19:59+01:00,Lynn Pallemaerts,,,,0.00,,,,,,,,,,,
+627fb1cc-d548-413f-a732-066ebdfcce05,f8483bd9-4eb8-4182-ad46-c9312ce3214e,Bolyguard SG2060,6.32813,51.61802,,2022-06-21T14:03:06+01:00,2022-06-21T15:31:12+01:00,,,,,,,,,,,,none,,,,
+aa077ed7-f648-4e22-b8c8-bb75883a8229,c2ee8197-6646-4c4d-84b2-0465d6a4be6d,HyperFire 2 Covert,5.62500,51.28941,,2022-07-01T08:47:01+01:00,2022-08-03T06:31:53+01:00,,,,,,,,,,,,none,,,,
+b1b9c256-a81d-4825-9cea-23f206d02903,9a10c366-5d06-4d32-af8a-ba642927120c,Reconyx HF2X 1080mp 1 band,4.35019,50.86672,,2022-11-04T13:46:58+01:00,2022-11-04T13:52:38+01:00,Lynn Pallemaerts,,,,0.00,,,,,,,,,,,
+b2d9f9bc-4cf4-4800-ab26-b78ffb211af4,7ab612ab-12b2-4f81-8d20-ea3504c41bdf,Marcus - S03,-0.14869,51.53220,,2017-10-12T11:37:35+01:00,2017-10-25T01:50:57+01:00,,,,,,,,,,,,,,,,
+d02bdac6-6b43-462c-a19b-a6998d7b9d8d,8c8a19d3-6451-406c-a521-20379e504a1f,Marcus - S04,-0.15571,51.53191,,2017-10-12T12:09:35+01:00,2017-10-19T06:23:12+01:00,,,,,,,,,,,,,,,,
+eafa473d-c736-4fcd-a577-1a6c0c1fb71c,4760a64c-0611-4114-a080-12f51ec43312,Marcus - S01,-0.15492,51.53624,,2017-10-02T19:06:43+01:00,2017-10-12T20:11:46+01:00,,,,,,,,,,,,,,,,
+f4895aad-f13e-489c-9902-ab056d484bc5,59ca5e53-62d9-45c1-871b-2115d0fd0df5,Reconyx HF2X 1080mp 2 bands,4.35019,50.86672,,2022-11-04T13:58:22+01:00,2022-11-04T14:04:04+01:00,Lynn Pallemaerts,,,,0.00,,,,,,,,,,,
+f99f5672-4bec-497c-a24a-c5ad97269b89,8e604417-3a4c-48d9-a15f-ba3d57297708,Marcus - S02,-0.15567,51.53513,,2017-10-24T06:10:55+01:00,2017-10-28T19:17:38+01:00,,,,,,,,,,,,,,,,

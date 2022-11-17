@@ -1,0 +1,13 @@
+dir,folder,image_name,x,y,frame_number,sequence_id,sequence_id_original,number_of_points,name,height,DateTimeOriginal,ImageWidth,ImageHeight,station,deployment,species,count,contact,radius,angle,frame_count,observation_id
+/fastapi/runs/example/deployment/S01,S01,IMG_0461.JPG,612,731,0,0,0,3,fox,1,2017:10:13 02:08:43,2048,1536,S01,S01,fox,1,1,6.8077574895,-0.1502330683,1,cf419883-0372-4d86-8734-73dccbe8884a
+/fastapi/runs/example/deployment/S01,S01,IMG_0462.JPG,360,726,1,0,0,3,fox,1,2017:10:13 02:08:43,2048,1536,S01,S01,fox,1,0,6.1711989026,-0.24212319740000002,2,cf419883-0372-4d86-8734-73dccbe8884a
+/fastapi/runs/example/deployment/S01,S01,IMG_0463.JPG,53,718,2,0,0,3,fox,1,2017:10:13 02:08:44,2048,1536,S01,S01,fox,1,0,5.5867795488,-0.3540687119,3,cf419883-0372-4d86-8734-73dccbe8884a
+/fastapi/runs/example/deployment/S01,S01,IMG_4821.JPG,1177,753,0,0,0,4,fox,1,2017:10:17 20:18:00,2048,1536,S01,S01,fox,1,1,8.2342885811,0.0557904356,1,45d015a2-67f8-40df-9da3-5e51b68bc6ef
+/fastapi/runs/example/deployment/S01,S01,IMG_4822.JPG,1423,800,1,0,0,4,fox,1,2017:10:17 20:18:01,2048,1536,S01,S01,fox,1,0,7.1466858815,0.14549270450000001,2,45d015a2-67f8-40df-9da3-5e51b68bc6ef
+/fastapi/runs/example/deployment/S01,S01,IMG_4823.JPG,1648,829,2,0,0,4,fox,1,2017:10:17 20:18:02,2048,1536,S01,S01,fox,1,0,6.859698975,0.22753746260000002,3,45d015a2-67f8-40df-9da3-5e51b68bc6ef
+/fastapi/runs/example/deployment/S01,S01,IMG_4824.JPG,1937,858,3,0,0,4,fox,1,2017:10:17 20:18:02,2048,1536,S01,S01,fox,1,0,6.8128350292,0.3329193965,4,45d015a2-67f8-40df-9da3-5e51b68bc6ef
+/fastapi/runs/example/deployment/S01,S01,IMG_4832.JPG,337,952,0,0,0,5,fox,1,2017:10:17 20:50:01,2048,1536,S01,S01,fox,1,1,2.9212513019,-0.25050999490000003,1,435fbbfa-5311-48af-92a6-21cc69be4852
+/fastapi/runs/example/deployment/S01,S01,IMG_4831.JPG,453,909,1,0,0,5,fox,1,2017:10:17 20:50:01,2048,1536,S01,S01,fox,1,0,3.3382556528,-0.20821136410000002,2,435fbbfa-5311-48af-92a6-21cc69be4852
+/fastapi/runs/example/deployment/S01,S01,IMG_4833.JPG,228,970,2,0,0,5,fox,1,2017:10:17 20:50:02,2048,1536,S01,S01,fox,1,0,2.7412228483,-0.2902561222,3,435fbbfa-5311-48af-92a6-21cc69be4852
+/fastapi/runs/example/deployment/S01,S01,IMG_4835.JPG,-80,1108,3,0,0,5,fox,1,2017:10:17 20:50:03,2048,1536,S01,S01,fox,1,0,2.0114142252,-0.4025662801,4,435fbbfa-5311-48af-92a6-21cc69be4852
+/fastapi/runs/example/deployment/S01,S01,IMG_4834.JPG,69,1014,4,0,0,5,fox,1,2017:10:17 20:50:03,2048,1536,S01,S01,fox,1,0,2.4294754383,-0.34823441800000005,5,435fbbfa-5311-48af-92a6-21cc69be4852
