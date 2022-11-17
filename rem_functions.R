@@ -254,21 +254,25 @@ fit_detmodel <- function(formula,
 #' @param species A character string indicating species subset to extract
 #'   data for; user input required if NULL.
 #' @param unit The time unit in which to return camera effort.
-#' @return A list with components:
-#'   - data: a dataframe with columns observations (observation counts) and
-#'           effort (camera effort) for each camera location.
-#'   - unit: a text record of the effort time unit
+#' @return A tibble with columns:
+#'   - locationName: name of the camera location
+#'   - effort: the camera time for the location
+#'   - unit: the effort time unit
+#'   - scientificName: the scientific name of the species data extracted
+#'   - n: the observation counts
 #' @family density estimation functions
 #' @export
 get_rem_data <- function(package, species=NULL, 
                          unit=c("second", "minute", "hour", "day")){
   unit <- match.arg(unit)
+  dep <- dplyr::select(package$data$deployments, deploymentID, locationName)
+  eff <- dplyr::select(get_effort(package, unit=unit), deploymentID, effort, unit)
+  cnt <- suppressMessages(get_n_individuals(package, species=species))
   if(is.null(species)) species <- select_species(package)
-  data <- data.frame(
-    observations = get_n_individuals(package, species=species)$n,
-    effort = get_effort(package, unit=unit)$effort) %>%
-    suppressMessages()
-  list(data=data, unit=unit)
+  dep %>% 
+    dplyr::left_join(eff, by="deploymentID") %>% 
+    dplyr::left_join(cnt, by="deploymentID") %>%
+    dplyr::select(-deploymentID)
 }
 
 #' Get a unit multiplier
@@ -424,8 +428,8 @@ harmonise_units <- function(param,
                 speedDist=distUnit, speedTime=timeUnit)
   paramOUT <- re_unit(param, units)
 
-  dm <- get_multiplier(data$unit, timeUnit)
-  data$data$effort <- data$data$effort * dm
+  dm <- get_multiplier(data$unit[1], timeUnit)
+  data$effort <- data$effort * dm
   data$unit <- timeUnit
   list(data=data, param=paramOUT)
 }
@@ -467,11 +471,11 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
   
   traprate <- function(data){
     if(is.null(stratum_areas)){
-      sum(data$observations) / sum(data$effort)
+      sum(data$n) / sum(data$effort)
     } else{
       local_density <- sapply(stratum_areas$stratumID, function(stratum){
         i <- data$stratumID==stratum
-        sum(data$observations[i]) / sum(data$effort[i])
+        sum(data$n[i]) / sum(data$effort[i])
       })
       sum(local_density * stratum_areas$area) / sum(stratum_areas$area)
     }
@@ -486,16 +490,16 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
     traprate(data[i, ])
   }
   
-  if(!all(c("effort", "observations") %in% names(data$data)))
+  if(!all(c("effort", "n") %in% names(data)))
     stop("data must contain (at least) columns effort and observations")
   if(!all(c("speed", "radius", "angle") %in% rownames(param)))
     stop("param must contain (at least) parameters speed, radius and angle")
   if(!is.null(stratum_areas)){
-    if(!"stratumID" %in% names(data$data))
+    if(!"stratumID" %in% names(data))
       stop("data must contain column stratumID for stratified analysis")
     if(!all(c("stratumID", "area") %in% names(stratum_areas)))
       stop("stratum_areas must contain columns stratumID and area")
-    if(!all(data$data$stratumID %in% stratum_areas$stratumID)) 
+    if(!all(data$stratumID %in% stratum_areas$stratumID)) 
       stop("Not all strata in data are present in stratum_areas")
   }  
   
@@ -503,7 +507,7 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
     param <- rbind(param, activity=data.frame(estimate=1, se=0))
   pkg <- harmonise_units(param, data, ...)
   param <- pkg$param
-  data <- pkg$data$data
+  data <- pkg$data
   add <- ifelse(rownames(param) == "angle", 2, 0)
   multiplier <- pi / prod(param$estimate + add)
   
@@ -515,7 +519,7 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
   SE <- density * sqrt(sum((SEs/Es)^2))
   res <- data.frame(estimate = c(traprate(data), density),
                     se = c(sd(tr_sample), SE),
-                    unit=c(paste0("n/", pkg$data$unit), 
+                    unit=c(paste0("n/", pkg$data$unit[1]), 
                            paste0("n/", param["radius", "unit"], "2")))
   rownames(res) <- c("traprate", "density")
   res
@@ -587,7 +591,7 @@ rem_estimate <- function(package,
              nrow(angle_model$data),
              length(speed_model$data),
              length(activity_model@data),
-             nrow(data$data),
+             nrow(data),
              NA)
   list(species=species, data=data, estimates=res,
        speed_model=speed_model, activity_model=activity_model, 
