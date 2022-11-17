@@ -1,6 +1,0 @@
-dir,folder,image_name,x,y,frame_number,sequence_id,sequence_id_original,number_of_points,name,height,DateTimeOriginal,ImageWidth,ImageHeight,station,deployment,species,count,contact,radius,angle,frame_count,observation_id
-/fastapi/runs/example/deployment/S01,S01,IMG_0391.JPG,112,1231,0,0,0,3,fox,1,2017:10:26 20:11:30,2048,1536,S01,S01,fox,1,1,1.725037822,-0.3325547531,1,74c7862a-aa79-4c1f-b10d-dfb2d653c910
-/fastapi/runs/example/deployment/S01,S01,IMG_0392.JPG,1188,1380,1,0,0,3,fox,1,2017:10:26 20:11:31,2048,1536,S01,S01,fox,1,0,1.3732047619,0.0598015126,2,74c7862a-aa79-4c1f-b10d-dfb2d653c910
-/fastapi/runs/example/deployment/S01,S01,IMG_0393.JPG,1763,1423,2,0,0,3,fox,1,2017:10:26 20:11:32,2048,1536,S01,S01,fox,1,0,1.2926172845,0.2694714502,3,74c7862a-aa79-4c1f-b10d-dfb2d653c910
-/fastapi/runs/example/deployment/S01,S01,IMG_0441.JPG,1267,873,0,0,0,2,fox,1,2017:10:28 19:17:38,2048,1536,S01,S01,fox,1,1,3.8651642437,0.0886083388,1,b131ebb8-9ad8-4554-a513-5e8f693fbf69
-/fastapi/runs/example/deployment/S01,S01,IMG_0442.JPG,1821,753,1,0,0,2,fox,1,2017:10:28 19:17:38,2048,1536,S01,S01,fox,1,0,6.5474073302,0.2906207656,2,b131ebb8-9ad8-4554-a513-5e8f693fbf69

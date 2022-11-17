@@ -1,3 +1,0 @@
-dir,folder,image_name,x,y,frame_number,sequence_id,sequence_id_original,number_of_points,name,height,DateTimeOriginal,ImageWidth,ImageHeight,station,deployment,species,count,contact,radius,angle,frame_count,observation_id
-/fastapi/runs/example/deployment/S01,S01,IMG_0251.JPG,923,1275,0,0,0,2,fox,1,2017:10:19 06:23:11,2048,1536,S01,S01,fox,1,1,1.8780921535,-0.0368289803,1,ece69b2a-99bc-4d80-9af7-cf98cc3220fa
-/fastapi/runs/example/deployment/S01,S01,IMG_0252.JPG,319,1304,1,0,0,2,fox,1,2017:10:19 06:23:12,2048,1536,S01,S01,fox,1,0,1.8553360861,-0.2570735756,2,ece69b2a-99bc-4d80-9af7-cf98cc3220fa
