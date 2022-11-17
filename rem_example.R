@@ -42,8 +42,7 @@ plot(rad, pdf=TRUE)
 plot(ang)
 plot(act)
 # Generate trap rate and parameter data tables
-trdata <- get_rem_data(package, species)
+data <- get_rem_data(package, species)
 param <- get_parameter_table(rad, ang, spd, act)
 # Estimate density
-rem(trdata, param)
-
+rem(data, param)

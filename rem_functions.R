@@ -1,5 +1,12 @@
-read_camtrap_dp2 <- function(package){
-  package <- read_camtrap_dp(package)
+#' Read a camera trap datapackage
+#'
+#' A temporary replacement for camtraptor::read_camtrap_dp to read
+#' data packages that contain animal position data.
+#' 
+#' @param file Path or URL to a datapackage.json file.
+#' @return As for camtraptor::read_camtrap_dp.
+read_camtrap_dp2 <- function(file){
+  package <- read_camtrap_dp(file)
   package$data$observations <- rename(package$data$observations, 
                                       speed=X22, 
                                       radius=X23, 
@@ -237,6 +244,22 @@ fit_detmodel <- function(formula,
   mod
 }
 
+#' Get REM data from a camtrap-dp datapackage
+#'
+#' Extracts a data table of observation counts and effort for each
+#' camera location in a camtrap-dp data package.
+#' 
+#' @param package Camera trap data package object, as returned by
+#'   `read_camtrap_dp()`.
+#' @param species A character string indicating species subset to extract
+#'   data for; user input required if NULL.
+#' @param unit The time unit in which to return camera effort.
+#' @return A list with components:
+#'   - data: a dataframe with columns observations (observation counts) and
+#'           effort (camera effort) for each camera location.
+#'   - unit: a text record of the effort time unit
+#' @family density estimation functions
+#' @export
 get_rem_data <- function(package, species=NULL, 
                          unit=c("second", "minute", "hour", "day")){
   unit <- match.arg(unit)
@@ -248,6 +271,17 @@ get_rem_data <- function(package, species=NULL,
   list(data=data, unit=unit)
 }
 
+#' Get a unit multiplier
+#' 
+#' Gives the value by which to multiply a value in one unit to another in
+#' one of three types: distance, time and angle.
+#'
+#' @param unitIN A text value giving the unit of the input; must be one of
+#'   "cm", "m", "km" for distances, "second", "minute", "hour", "day" for 
+#'   times, or "radian" "degree for angles.
+#' @param unitOUT The same for output; must be of the same type as unitIN.
+#' @return A number giving the amount by which to multipy input values
+#'   to arrive a unit-converted output.
 get_multiplier <- function(unitIN, unitOUT){
   dunits <- c("cm", "m", "km")
   dmult <- c(1, 1e2, 1e5)
@@ -278,36 +312,55 @@ get_multiplier <- function(unitIN, unitOUT){
   tab$mult[tab$from==unitIN & tab$to==unitOUT]
 }
 
+#' Change the units of an REM parameter table
+#' 
+#' Changes the units of parameters from their current setting to new 
+#' user-definedunits.
+#' 
+#' @param param An REM parameter dataframe with columns: estimate, se and unit,
+#'   and rows named with parameter names in "radius", "angle", "speed".
+#' @param units A named vector of character unit names giving the units to which
+#'   each parameter is to be converted. 
+#' @return A new parameter dataframe with estimate, se and unit values modified
+#'   to change units from current to units
 re_unit <- function(param,
-                    unitsIN = c(radius="m",
-                                angle="radian",
-                                speedDist="m",
-                                speedTime="second"),
-                    unitsOUT = c(radius="m",
-                                 angle="degree",
-                                 speedDist="km",
-                                 speedTime="hour")){
+                    units = c(radius="m",
+                              angle="degree",
+                              speedDist="km",
+                              speedTime="hour")){
 
-  rm <- get_multiplier(unitsIN["radius"], unitsOUT["radius"])
-  am <- get_multiplier(unitsIN["angle"], unitsOUT["angle"])
-  sdm <- get_multiplier(unitsIN["speedDist"], unitsOUT["speedDist"])
-  stm <- get_multiplier(unitsIN["speedTime"], unitsOUT["speedTime"])
+  spd_units <- unlist(strsplit(param["speed", "unit"], "/"))
+  rm <- get_multiplier(param["radius", "unit"], units["radius"])
+  am <- get_multiplier(param["angle", "unit"], units["angle"])
+  sdm <- get_multiplier(spd_units[1], units["speedDist"])
+  stm <- get_multiplier(spd_units[2], units["speedTime"])
 
   # Modify table
-  ri <- param$parameter=="radius"
-  ai <- param$parameter=="angle"
-  si <- param$parameter=="speed"
   j <- c("estimate", "se")
-  param[ri, j] <- param[ri, j] * rm
-  param[ai, j] <- param[ai, j] * am
-  param[si, j] <- param[si, j] * sdm / stm
-  param[ri, "unit"] <- unitsOUT["radius"]
-  param[ai, "unit"] <- unitsOUT["angle"]
-  param[si, "unit"] <- paste(unitsOUT["speedDist"], unitsOUT["speedTime"], sep="/")
+  param["radius", j] <- param["radius", j] * rm
+  param["angle", j] <- param["angle", j] * am
+  param["speed", j] <- param["speed", j] * sdm / stm
+  param["radius", "unit"] <- units["radius"]
+  param["angle", "unit"] <- units["angle"]
+  param["speed", "unit"] <- paste(units["speedDist"], units["speedTime"], sep="/")
   param
 }
 
-
+#' Create a parameter table from a set of models
+#' 
+#' Creates a table of REM parameters taken from models for detection radius, 
+#' angle, speed and activity level. 
+#' 
+#' @param radius_model A detection radius model fitted using fit_detmodel
+#' @param angle_model A detection angle model fitted using fit_detmodel
+#' @param speed_model A speed model fitted using fit_speedmodel
+#' @param speed_model An activity  model fitted using fit_actmodel
+#' @param units A named vector of character unit names giving the units to which
+#'   each parameter is to be converted. 
+#' @return A dataframe of parameter estimates with columns: estimate, se and
+#'   unit.
+#' @family density estimation functions
+#' @export
 get_parameter_table <- function(radius_model, angle_model, 
                                 speed_model, activity_model=NULL,
                                 units = c(radius="m",
@@ -332,43 +385,44 @@ get_parameter_table <- function(radius_model, angle_model,
                paste(expectedAngle, collapse = ", ")))
 
   act_val <- if(is.null(activity_model)) c(1,0) else activity_model@act[1:2]
-  unitsIN <- c(radius = radius_model$unit,
-               angle = angle_model$unit,
-               speedDist = speed_model$distUnit,
-               speedTime = speed_model$timeUnit)
-  res <- data.frame(parameter = c("radius", "angle", "speed", "activity"),
-                    rbind(radius_model$edd, 
+  res <- data.frame(rbind(radius_model$edd, 
                           angle_model$edd * 2,
                           speed_model$speed, 
                           act_val),
-                    unit = c(unitsIN["radius"], 
-                             unitsIN["angle"], 
-                             paste(unitsIN["speedDist"], unitsIN["speedTime"], 
+                    unit = c(radius_model$unit, 
+                             angle_model$unit, 
+                             paste(speed_model$distUnit,
+                                   speed_model$timeUnit, 
                                    sep="/"),
                              "none"))
-  rownames(res) <- NULL
-  re_unit(res, unitsIN, units)
+  rownames(res) <- c("radius", "angle", "speed", "activity")
+  re_unit(res, units)
 }
 
-
-harmonise_units <- function(param, data,
+#' Harmonise parameter units
+#' 
+#' Changes REM parameter values and units to ensure that time and distance 
+#' are expressed in consistent units across parameters.
+#' 
+#' @param param An REM parameter dataframe with columns: estimate, se and unit,
+#'   and rows named with parameter names in "radius", "angle", "speed", 
+#'   obtained using get_parameter_table.
+#' @param data An rem data object obtained using get_rem_data.
+#' @param distUnit A character defining the ditance unit to which to harmonise
+#' @param timeUnit A character defining the time unit to which to harmonise
+#' @family density estimation functions
+#' @export
+harmonise_units <- function(param, 
+                            data,
                             distUnit=c("km","m", "cm"), 
                             timeUnit=c("day", "hour", "minute", "second")){
   distUnit <- match.arg(distUnit)
   timeUnit <- match.arg(timeUnit)
 
-  spd_units <- param %>%
-    dplyr::filter(parameter=="speed") %>%
-    .$unit %>%
-    strsplit("/") %>%
-    unlist()
-  unitsIN <- c(radius = dplyr::filter(param, parameter=="radius")$unit,
-               angle = dplyr::filter(param, parameter=="angle")$unit,
-               speedDist = spd_units[1],
-               speedTime = spd_units[2])
-  unitsOUT <- c(radius=distUnit, angle="radian", 
+  spd_units <- unlist(strsplit(param["speed", "unit"], "/"))
+  units <- c(radius=distUnit, angle="radian", 
                 speedDist=distUnit, speedTime=timeUnit)
-  paramOUT <- re_unit(param, unitsIN, unitsOUT)
+  paramOUT <- re_unit(param, units)
 
   dm <- get_multiplier(data$unit, timeUnit)
   data$data$effort <- data$data$effort * dm
@@ -434,7 +488,7 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
   
   if(!all(c("effort", "observations") %in% names(data$data)))
     stop("data must contain (at least) columns effort and observations")
-  if(!all(c("speed", "radius", "angle") %in% param$parameter))
+  if(!all(c("speed", "radius", "angle") %in% rownames(param)))
     stop("param must contain (at least) parameters speed, radius and angle")
   if(!is.null(stratum_areas)){
     if(!"stratumID" %in% names(data$data))
@@ -445,15 +499,12 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
       stop("Not all strata in data are present in stratum_areas")
   }  
   
-  if(!("activity" %in% param$parameter)) 
-    param <- rbind(param, data.frame(parameter="activity", estimate=1, se=0))
-  param <- param %>%
-    dplyr::select(parameter, estimate, se, unit) %>%
-    dplyr::filter(parameter %in% c("radius", "angle", "speed", "activity"))
+  if(!"activity" %in% rownames(param)) 
+    param <- rbind(param, activity=data.frame(estimate=1, se=0))
   pkg <- harmonise_units(param, data, ...)
   param <- pkg$param
   data <- pkg$data$data
-  add <- ifelse(param$parameter == "angle", 2, 0)
+  add <- ifelse(rownames(param) == "angle", 2, 0)
   multiplier <- pi / prod(param$estimate + add)
   
   tr_sample <- replicate(reps, sampled_traprate())
@@ -462,11 +513,12 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
   Es <- c(tr$estimate, param$estimate + add)
   SEs <- c(tr$se, param$se)
   SE <- density * sqrt(sum((SEs/Es)^2))
-  data.frame(parameter = c("traprate", "density"),
-             estimate = c(traprate(data), density),
-             se = c(sd(tr_sample), SE),
-             unit=c(paste0("n/", pkg$data$unit), 
-                    paste0("n/", subset(pkg$param, parameter=="radius")$unit, "2")))
+  res <- data.frame(estimate = c(traprate(data), density),
+                    se = c(sd(tr_sample), SE),
+                    unit=c(paste0("n/", pkg$data$unit), 
+                           paste0("n/", param["radius", "unit"], "2")))
+  rownames(res) <- c("traprate", "density")
+  res
 }
 
 
