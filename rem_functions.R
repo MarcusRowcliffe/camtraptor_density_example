@@ -436,9 +436,9 @@ harmonise_units <- function(param,
                 speedDist=distUnit, speedTime=timeUnit)
   paramOUT <- re_unit(param, units)
 
-  dm <- get_multiplier(data$unit[1], timeUnit)
+  dm <- get_multiplier(data$effort_unit[1], timeUnit)
   data$effort <- data$effort * dm
-  data$unit <- timeUnit
+  data$effort_unit <- timeUnit
   list(data=data, param=paramOUT)
 }
 
@@ -527,7 +527,7 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
   SE <- density * sqrt(sum((SEs/Es)^2))
   res <- data.frame(estimate = c(traprate(data), density),
                     se = c(sd(tr_sample), SE),
-                    unit=c(paste0("n/", pkg$data$unit[1]), 
+                    unit=c(paste0("n/", pkg$data$effort_unit[1]), 
                            paste0("n/", param["radius", "unit"], "2")))
   rownames(res) <- c("traprate", "density")
   res
