@@ -131,21 +131,34 @@ fit_speedmodel <- function(package,
 #'   `read_camtrap_dp()`.
 #' @param species A character string indicating species subset to analyse; user
 #'   input required if NULL.
+#' @param obsdef Observation definition, either individual or sequence.
 #' @param reps Number of bootstrap replicates to run.
+#' @param ... Arguments passed to fitact.
 #' @return An `actmod` list.
 #' @seealso \code{\link{activity::fitact}}
 #' @family density estimation functions
 #' @export
 fit_actmodel <- function(package, 
                          species=NULL, 
+                         obsdef=c("individual", "sequence"),
                          reps=999,
                          ...){
+  obsdef <- match.arg(obsdef)
   if(is.null(species)) species <- select_species(package)
   deps <- package$data$deployments
-  obs <- package$data$observations
-  if(sum(obs$scientificName==species, na.rm=TRUE)>1){ 
-    obs <- left_join(obs, dplyr::select(deps, deploymentID, latitude, longitude),
-                     by="deploymentID")
+  obs <- package$data$observations %>%
+    dplyr::filter(scientificName==species) %>%
+    dplyr::select(deploymentID, sequenceID, timestamp, count)
+  i <- switch(obsdef,
+              individual = rep(1:nrow(obs), obs$count),
+              sequence = !duplicated(obs$sequenceID))
+  obs <- obs[i, ]
+
+  if(nrow(obs)>1){ 
+    obs <- deps %>%
+      dplyr::select(deploymentID, latitude, longitude) %>%
+      dplyr::right_join(obs, by="deploymentID") %>%
+      dplyr::select(-count)
     suntimes <- insol::daylength(obs$latitude, obs$longitude, 
                                  insol::JD(obs$timestamp), 0)
     timeshift <- pi - mean(suntimes[, 1] + suntimes[,3]/2) * pi/12
@@ -154,10 +167,8 @@ fit_actmodel <- function(package,
       .$solar %>%
       + timeshift %>%
       activity::wrap()
-    obs %>%
-      subset(scientificName==species) %>%
-      .$solartime %>%
-      activity::fitact(adj = 1.5, sample = "data", reps = reps, ...)
+      activity::fitact(obs$solartime,
+                       adj = 1.5, sample = "data", reps = reps, ...)
   } else
     NULL
 }
@@ -173,6 +184,7 @@ fit_actmodel <- function(package,
 #'   `read_camtrap_dp()`.
 #' @param species A character string indicating species subset to analyse; user
 #'   input required if NULL.
+#' @param ... Arguments passed to ds.
 #' @return A `ddf` detection function model list, with additional element
 #'   `edd`, a vector with estimated and standard error effective detection 
 #'   distance, or the `newdata` dataframe with EDD estimate and se added.
@@ -471,6 +483,7 @@ harmonise_units <- function(param,
 #' @param reps Number of bootstrap replicates for error estimation. 
 #' @return A dataframe with the original parameters plus trap rate and density
 #'  estimates and standard errors.
+#' @param ... Arguments passed to harmonise_units.
 #' @details The function makes no assumptions about units. It is up to the user to ensure 
 #'  that these are harmonised across data and parameters.
 #' @family density estimation functions
