@@ -265,14 +265,22 @@ fit_detmodel <- function(formula,
 get_rem_data <- function(package, species=NULL, 
                          unit=c("second", "minute", "hour", "day")){
   unit <- match.arg(unit)
-  dep <- dplyr::select(package$data$deployments, deploymentID, locationName)
-  eff <- dplyr::select(get_effort(package, unit=unit), deploymentID, effort, unit)
-  cnt <- suppressMessages(get_n_individuals(package, species=species))
   if(is.null(species)) species <- select_species(package)
-  dep %>% 
-    dplyr::left_join(eff, by="deploymentID") %>% 
-    dplyr::left_join(cnt, by="deploymentID") %>%
-    dplyr::select(-deploymentID)
+  dep <- package$data$deployments %>%
+    dplyr::select(deploymentID, locationName)
+  eff <- package %>%
+    get_effort(unit=unit) %>%
+    dplyr::select(deploymentID, effort)
+  res <- package %>%
+    get_n_individuals(species=species) %>%
+    suppressMessages() %>%
+    dplyr::left_join(dep, by="deploymentID") %>%
+    dplyr::left_join(eff, by="deploymentID") %>%
+    dplyr::group_by(locationName) %>%
+    dplyr::summarise(n = sum(n), effort=sum(effort))
+  res$effort_unit <- unit
+  res$species <- species
+  res
 }
 
 #' Get a unit multiplier
