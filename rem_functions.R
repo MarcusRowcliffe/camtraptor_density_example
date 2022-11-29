@@ -140,8 +140,8 @@ fit_speedmodel <- function(package,
 #' @export
 fit_actmodel <- function(package, 
                          species=NULL, 
-                         obsdef=c("individual", "sequence"),
                          reps=999,
+                         obsdef=c("individual", "sequence"),
                          ...){
   obsdef <- match.arg(obsdef)
   if(is.null(species)) species <- select_species(package)
