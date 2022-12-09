@@ -121,6 +121,7 @@ fit_speedmodel <- function(package,
   obs <- package$data$observations %>%
     subset(scientificName==species & speed > 0.01 & speed < 10 & !is.na(speed))
   if("useDeployment" %in% names(obs)) obs <- subset(obs, useDeployment)
+  if(nrow(obs) == 0) stop("There are no usable speed data")
   mn <- 1/mean(1/obs$speed, na.rm=FALSE)
   se <- mn^2 * sqrt(var(1/obs$speed, na.rm=FALSE)/nrow(obs))
   list(speed=data.frame(estimate=mn, se=se), 
@@ -222,6 +223,7 @@ fit_detmodel <- function(formula,
     tidyr::drop_na() %>%
     as.data.frame()
   if("useDeployment" %in% names(data)) data <- subset(data, useDeployment)
+  if(nrow(data) == 0) stop("There are no usable position data")
   
   classes <- dplyr::summarise_all(data, class)
   if(classes[depvar]=="numeric"){
@@ -597,9 +599,6 @@ rem_estimate <- function(package,
   if(check_deployments) package <- check_deployment_models(package)
   if(is.null(species)) species <- select_species(package)
   
-  if(is.null(activity_model)) 
-    activity_model <- fit_actmodel(package, species, reps)
-  
   if(is.null(radius_model)) 
     radius_model <- fit_detmodel(radius~1, package, species,
                                  order=0, truncation=10)
@@ -610,6 +609,9 @@ rem_estimate <- function(package,
   
   if(is.null(speed_model))
     speed_model <- fit_speedmodel(package, species)
+  
+  if(is.null(activity_model)) 
+    activity_model <- fit_actmodel(package, species, reps)
   
   data <- get_rem_data(package, species, unit="day")
   param <- get_parameter_table(radius_model, angle_model, 
