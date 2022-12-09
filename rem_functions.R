@@ -28,13 +28,20 @@ read_camtrap_dp2 <- function(file){
 select_species <- function(package){
   tab <-  get_species(package)
   tab <- tab[, grepl("Name", names(tab))]
-  n <- table(package$data$observations$scientificName)
-  tab$n_observations <- n
+  obs <- package$data$observations
+  if("useDeployment" %in% names(obs)) obs <- subset(obs, useDeployment)
+  tab$n_observations <- table(obs$scientificName)
+  tab$n_speeds <- with(obs, tapply(speed, scientificName, function(x)
+    sum(x>0.1 & x<10 & !is.na(x))))
+  tab$n_radii <- with(obs, tapply(radius, scientificName, function(x) 
+    sum(x<10 & !is.na(x))))
+  tab$n_angles <- with(obs, tapply(speed, scientificName, function(x)
+    sum(!is.na(x))))
   
   print.data.frame(tab)
   i <- NA
   while(is.na(i) || i<1 || i>nrow(tab))
-    i <- readline("Enter row number of species to analyse: ") %>%
+    i <- readline("Enter row number of species to select: ") %>%
     as.numeric() %>%
     suppressWarnings()
   as.character(tab$scientificName[i])
@@ -95,8 +102,8 @@ check_deployment_models <- function(package){
 #'
 #' @param package Camera trap data package object, as returned by
 #'   `read_camtrap_dp()`.
-#' @param species A character string indicating species subset to analyse; user
-#'   input required if NULL.
+#' @param species A character string indicating species subset to analyse;
+#'   if NULL runs select_species to get user input.
 #' @return List with elements:
 #'  - speed: a one row dataframe containing mean (estimate) and standard error 
 #'    (se) speed while active
@@ -112,7 +119,7 @@ fit_speedmodel <- function(package,
   
   if(is.null(species)) species <- select_species(package)
   obs <- package$data$observations %>%
-    subset(scientificName==species & speed > 0.01 & speed < 10)
+    subset(scientificName==species & speed > 0.01 & speed < 10 & !is.na(speed))
   if("useDeployment" %in% names(obs)) obs <- subset(obs, useDeployment)
   mn <- 1/mean(1/obs$speed, na.rm=FALSE)
   se <- mn^2 * sqrt(var(1/obs$speed, na.rm=FALSE)/nrow(obs))
@@ -129,8 +136,8 @@ fit_speedmodel <- function(package,
 #'
 #' @param package Camera trap data package object, as returned by
 #'   `read_camtrap_dp()`.
-#' @param species A character string indicating species subset to analyse; user
-#'   input required if NULL.
+#' @param species A character string indicating species subset to analyse; 
+#'   if NULL runs select_species to get user input.
 #' @param obsdef Observation definition, either individual or sequence.
 #' @param reps Number of bootstrap replicates to run.
 #' @param ... Arguments passed to fitact.
@@ -182,8 +189,8 @@ fit_actmodel <- function(package,
 #'   to covariates.
 #' @param package Camera trap data package object, as returned by
 #'   `read_camtrap_dp()`.
-#' @param species A character string indicating species subset to analyse; user
-#'   input required if NULL.
+#' @param species A character string indicating species subset to analyse; 
+#'   if NULL runs select_species to get user input.
 #' @param ... Arguments passed to ds.
 #' @return A `ddf` detection function model list, with additional element
 #'   `edd`, a vector with estimated and standard error effective detection 
@@ -264,7 +271,7 @@ fit_detmodel <- function(formula,
 #' @param package Camera trap data package object, as returned by
 #'   `read_camtrap_dp()`.
 #' @param species A character string indicating species subset to extract
-#'   data for; user input required if NULL.
+#'   data for; if NULL runs select_species to get user input.
 #' @param unit The time unit in which to return camera effort.
 #' @return A tibble with columns:
 #'   - locationName: name of the camera location
@@ -297,7 +304,7 @@ get_rem_data <- function(package, species=NULL,
 
 #' Get a unit multiplier
 #' 
-#' Gives the value by which to multiply a value in one unit to another in
+#' Returns a multiplier to convert a value from one unit to another in
 #' one of three types: distance, time and angle.
 #'
 #' @param unitIN A text value giving the unit of the input; must be one of
@@ -339,10 +346,10 @@ get_multiplier <- function(unitIN, unitOUT){
 #' Change the units of an REM parameter table
 #' 
 #' Changes the units of parameters from their current setting to new 
-#' user-definedunits.
+#' user-defined units.
 #' 
 #' @param param An REM parameter dataframe with columns: estimate, se and unit,
-#'   and rows named with parameter names in "radius", "angle", "speed".
+#'   and at least three rows named "radius", "angle", "speed".
 #' @param units A named vector of character unit names giving the units to which
 #'   each parameter is to be converted. 
 #' @return A new parameter dataframe with estimate, se and unit values modified
@@ -426,13 +433,14 @@ get_parameter_table <- function(radius_model, angle_model,
 #' Harmonise parameter units
 #' 
 #' Changes REM parameter values and units to ensure that time and distance 
-#' are expressed in consistent units across parameters.
+#' are expressed in consistent units across parameters and data in preparation
+#' for REM analysis; also converts angles to radian if necessary.
 #' 
 #' @param param An REM parameter dataframe with columns: estimate, se and unit,
 #'   and rows named with parameter names in "radius", "angle", "speed", 
 #'   obtained using get_parameter_table.
 #' @param data An rem data object obtained using get_rem_data.
-#' @param distUnit A character defining the ditance unit to which to harmonise
+#' @param distUnit A character defining the distance unit to which to harmonise
 #' @param timeUnit A character defining the time unit to which to harmonise
 #' @family density estimation functions
 #' @export
@@ -570,8 +578,8 @@ rem <- function(data, param, stratum_areas=NULL, reps=999, ...){
 #' @param speed_model A named vector with elements `estimate` and `se`
 #' (giving mean and standard error of speed), as derived from `fit_speedmodel`; 
 #' fitted internally if `NULL`.
-#' @param species A character string indicating species subset to analyse; user
-#'   input required if NULL.
+#' @param species A character string indicating species subset to analyse; 
+#'   if NULL runs select_species to get user input.
 #' @param reps Number of bootstrap replicates for error estimation. 
 #' @return A dataframe with .
 #' @seealso \code{\link{Distance::ds}}
