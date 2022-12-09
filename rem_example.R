@@ -32,7 +32,7 @@ plot(result$angle_model)
 ################################################
 # Building the analysis yourself
 species <- "Vulpes vulpes"
-# Fit auxilaiary parameter models
+# Fit auxiliary parameter models
 spd <- fit_speedmodel(package, species=species)
 act <- fit_actmodel(package, species=species)
 rad <- fit_detmodel(radius~1, package, species=species, order=0, truncation=12)
