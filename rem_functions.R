@@ -29,8 +29,9 @@ select_species <- function(package){
   tab <-  get_species(package)
   tab <- tab[, grepl("Name", names(tab))]
   obs <- package$data$observations
-  if("useDeployment" %in% names(obs)) obs <- subset(obs, useDeployment)
   tab$n_observations <- table(obs$scientificName)
+  if("useDeployment" %in% names(obs)) 
+    obs[!obs$useDeployment, c("speed", "radius", "angle")] <- NA
   tab$n_speeds <- with(obs, tapply(speed, scientificName, function(x)
     sum(x>0.1 & x<10 & !is.na(x))))
   tab$n_radii <- with(obs, tapply(radius, scientificName, function(x) 
