@@ -2,6 +2,7 @@
 # Install packges (run once)
 install.packages(c("devtools",
                    "tidyverse",
+                   "jpeg",
                    "activity",
                    "Distance"))
 devtools::install_github("inbo/camtraptor")
@@ -16,7 +17,8 @@ devtools::source_url("https://raw.githubusercontent.com/MarcusRowcliffe/camtrapt
 
 ################################################
 # Load data
-package <- read_camtrap_dp2("./data/datapackage.json")
+package <- read_camtrap_dp("./data/datapackage.json")
+package <- read_camtrap_dp("C:/Users/rowcliffe.m/Downloads/castelporziano-20221220121305/datapackage.json")
 
 ################################################
 # One step analysis
@@ -31,11 +33,11 @@ plot(result$angle_model)
 
 ################################################
 # Building the analysis yourself
-species <- "Vulpes vulpes"
+species <- "Sus scrofa"
 # Fit auxiliary parameter models
 spd <- fit_speedmodel(package, species=species)
 act <- fit_actmodel(package, species=species)
-rad <- fit_detmodel(radius~1, package, species=species, order=0, truncation=12)
+rad <- fit_detmodel(radius~1, package, species=species, order=0, truncation=10)
 ang <- fit_detmodel(angle~1, package, species=species, order=0, unit="radian")
 # Examine models
 plot(rad, pdf=TRUE)
@@ -46,3 +48,4 @@ data <- get_rem_data(package, species)
 param <- get_parameter_table(rad, ang, spd, act)
 # Estimate density
 rem(data, param)
+

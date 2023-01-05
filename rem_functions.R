@@ -1,3 +1,65 @@
+#' Subset a camera trap datapackage by deployment
+#'
+#' Select a subset of deployments from a datapackage defined by 
+#' a choice based on columns in the deployments table
+#' 
+#' @param package Camera trap data package object, as returned by
+#'   `read_camtrap_dp()`.
+#' @param choice A logical expression using columns name from the 
+#'  deployments table.
+#' @return As for camtraptor::read_camtrap_dp, with all datatables
+#'  reduced according to the choice criteria.
+#' @examples
+#' # subset excluding two locations and including only 1st half of 2022
+#' subpackage <- subset_deployments(package,
+#'                                  !locationName %in% c("N23", "S18") & 
+#'                                   start > as.POSIXct("2022-01-01", tz="UTC") & 
+#'                                   end < as.POSIXct("2022-06-01", tz="UTC"))
+subset_deployments <- function(package, choice){
+  out <- package
+  out$data$deployments <- dplyr::filter(out$data$deployments, {{choice}})
+  usedeps <- out$data$deployments$deploymentID
+  out$data$media <- dplyr::filter(package$data$media,
+                                  deploymentID %in% usedeps)
+  out$data$observations <- dplyr::filter(package$data$observations,
+                                         deploymentID %in% usedeps)
+  out
+}
+
+#' Correct times for a given deployment in a camera trap datapackage
+#'
+#' When a camera trap starts with the wrong time stamp, times 
+#' in all datapackage tables can be corrected given a reference time
+#' recorded by the camera, the correct time for this reference time
+#' and the ID of the deployment to correct.
+#' 
+#' @param package Camera trap data package object, as returned by
+#'   `read_camtrap_dp()`.
+#' @param deploymentID A character value giving the deployment identifier,
+#'  to be matched in package$data$deployments$deploymentID.
+#' @param wrongTime A character or POSIX reference date-time recorded wrongly
+#'  by the camera.
+#' @param rightTime A character or POSIX value giving the correct date-time
+#'  when the reference time was recorded.
+#' @return As for camtraptor::read_camtrap_dp, with all date-times corrected
+#'  by the difference between rightTime and wrongTime.
+#' @examples
+#' cpkg <- correct_time(package,
+#'                      deploymentID = "022406d5-96a8-4192-a8d2-f86eab55df57",
+#'                      wrongTime = "2017-01-01 00:00:00",
+#'                      rightTime = "2018-09-01 11:04:00")
+correct_time <- function(package, deploymentID, wrongTime, rightTime){
+  tdiff <- as.POSIXct(rightTime, tz="UTC") - as.POSIXct(wrongTime, tz="UTC")
+  package$data$deployments <- dplyr::mutate(package$data$deployments,
+                                            start = start + tdiff,
+                                            end = end + tdiff)
+  package$data$observations <- dplyr::mutate(package$data$observations,
+                                             timestamp = timestamp + tdiff)
+  package$data$media <- dplyr::mutate(package$data$media,
+                                      timestamp = timestamp + tdiff)
+  package
+}
+
 #' Read a camera trap datapackage
 #'
 #' A temporary replacement for camtraptor::read_camtrap_dp to read
